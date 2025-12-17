@@ -1,8 +1,8 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Category, Question } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Pastikan kunci API tersedia sebelum inisialisasi untuk mencegah crash total aplikasi
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 /**
  * Utility for exponential backoff retries
@@ -23,6 +23,11 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, delay = 10
  * Generates a base64 image using the Gemini image model.
  */
 export const generateQuestionImage = async (prompt: string): Promise<string | undefined> => {
+  if (!process.env.API_KEY) {
+    console.warn("API_KEY missing, skipping image generation");
+    return undefined;
+  }
+
   return retryWithBackoff(async () => {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
@@ -102,11 +107,9 @@ export const generateQuestions = async (category: Category, subTopic: string | n
     if (response.text) {
       const questions: Question[] = JSON.parse(response.text);
       
-      // Process images sequentially to avoid hitting rate limits (429)
       const questionsWithImages: Question[] = [];
       for (const q of questions) {
         if (q.imagePrompt) {
-          // Add a small artificial delay between requests to be gentle on the API
           await new Promise(resolve => setTimeout(resolve, 200)); 
           const imageUrl = await generateQuestionImage(q.imagePrompt);
           questionsWithImages.push({ 
