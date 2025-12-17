@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GameScreen, Category, User, Question, Character, CHARACTERS } from './types';
 import { audioService } from './services/audioService';
 import { generateQuestions } from './services/geminiService';
 import Cursor from './components/Cursor';
-import { Target, Trophy, Map as MapIcon, Shield, User as UserIcon, LogOut, ChevronRight, Crosshair, Zap, Book, Flag, Globe, Music, FlaskConical, Swords, Bomb, ChevronRight as Arrow, Scan } from 'lucide-react';
+import { LogOut, Crosshair, Zap, Book, Flag, Globe, Music, FlaskConical, Swords, User as UserIcon, Scan } from 'lucide-react';
 
 const STORAGE_KEY = 'battle-knowledge-user';
 
@@ -84,38 +84,36 @@ function App() {
   const startQuiz = async (category: Category, subTopic: string | null = null) => {
     audioService.playClick();
     setLoading(true);
-    setLoadingPhase("ESTABLISHING SECURE CONNECTION...");
+    setLoadingPhase("INITIALIZING LINK TO SATELLITE...");
     setSelectedCategory(category);
     setMathSub(subTopic);
     
     try {
-      setLoadingPhase("GATHERING TACTICAL INTELLIGENCE...");
-      const qs = await generateQuestions(category, subTopic, 10); // Gunakan 10 soal agar lebih cepat
+      setLoadingPhase("SCRAPING INTELLIGENCE DATA...");
+      const qs = await generateQuestions(category, subTopic, 10);
       
       if (!qs || qs.length === 0) {
-        throw new Error("No questions generated");
+        throw new Error("EMPTY INTEL: Satellite returned no usable data.");
       }
 
-      setLoadingPhase("PREPARING BATTLEGROUND...");
-      // Pastikan data soal di-set SEBELUM pindah layar
-      const shuffledQs = shuffleArray(qs);
-      setQuestionsP1(shuffledQs.map(q => ({ ...q, options: shuffleArray([...q.options]) })));
-      setQuestionsP2(shuffledQs.map(q => ({ ...q, options: shuffleArray([...q.options]) })));
+      setLoadingPhase("GENERATING TACTICAL VISUALS...");
+      setQuestionsP1(qs.map(q => ({ ...q, options: shuffleArray([...q.options]) })));
+      setQuestionsP2(shuffleArray(qs).map(q => ({ ...q, options: shuffleArray([...q.options]) })));
       
       setIndexP1(0); setIndexP2(0);
       setScoreP1(0); setScoreP2(0);
       setFinishedP1(false); setFinishedP2(false);
       
-      // Gunakan delay kecil untuk memastikan state React ter-update
+      setLoadingPhase("DEPLOYING TO ZONE...");
       setTimeout(() => {
         setScreen(GameScreen.GAMEPLAY);
         setLoading(false);
-      }, 500);
+      }, 800);
 
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Terjadi kesalahan sistem. Silakan coba lagi.");
       setLoading(false);
+      alert(e.message || "SIGNAL INTERRUPTED: Please check your connection or API configuration.");
     }
   };
 
@@ -154,7 +152,7 @@ function App() {
       case GameScreen.CHAR_SELECT: return <CharacterSelectScreen onSelect={handleCharacterSelect} />;
       case GameScreen.MAP: return <MapScreen user={user} onSelectCategory={(cat) => cat === Category.MATH ? setShowMathModal(true) : startQuiz(cat)} onLogout={() => { audioService.stopBGM(); setScreen(GameScreen.TITLE); }} />;
       case GameScreen.GAMEPLAY: return <SplitGameplayScreen questionsP1={questionsP1} questionsP2={questionsP2} indexP1={indexP1} indexP2={indexP2} scoreP1={scoreP1} scoreP2={scoreP2} finishedP1={finishedP1} finishedP2={finishedP2} onAnswerP1={handleAnswerP1} onAnswerP2={handleAnswerP2} />;
-      case GameScreen.RESULT: return <ResultScreen scoreP1={scoreP1} scoreP2={scoreP2} total={questionsP1.length * 5} onHome={() => setScreen(GameScreen.MAP)} />;
+      case GameScreen.RESULT: return <ResultScreen scoreP1={scoreP1} scoreP2={scoreP2} onHome={() => setScreen(GameScreen.MAP)} />;
       default: return null;
     }
   };
@@ -182,13 +180,13 @@ function App() {
       {showMathModal && (
         <div className="absolute inset-0 z-40 bg-black/80 flex items-center justify-center backdrop-blur-sm">
            <div className="bg-slate-900 border-2 border-cyan-500 p-8 w-[90%] max-w-md clip-diagonal relative shadow-[0_0_50px_rgba(6,182,212,0.5)]">
-              <h3 className="font-ops text-2xl text-cyan-400 mb-6 text-center">TACTICAL OPS: MATH</h3>
+              <h3 className="font-ops text-2xl text-cyan-400 mb-6 text-center uppercase">Tactical Ops: Math</h3>
               <div className="grid grid-cols-2 gap-4">
                 {['Penjumlahan', 'Pengurangan', 'Perkalian', 'Pembagian'].map(op => (
                   <button key={op} onClick={() => { setShowMathModal(false); startQuiz(Category.MATH, op); }} className="bg-slate-800 hover:bg-cyan-600 border border-slate-600 hover:border-white p-4 text-white font-bold transition-all clip-diagonal hover:scale-105">{op.toUpperCase()}</button>
                 ))}
               </div>
-              <button onClick={() => setShowMathModal(false)} className="absolute top-2 right-2 text-red-500 hover:text-white">X</button>
+              <button onClick={() => setShowMathModal(false)} className="absolute top-2 right-2 text-red-500 hover:text-white font-bold">CANCEL</button>
            </div>
         </div>
       )}
@@ -220,13 +218,13 @@ const LoginScreen = ({ onLogin }: { onLogin: (n: string, g: string) => void }) =
         <div className="space-y-6">
           <div>
             <label className="block text-yellow-500 font-bold mb-2 tracking-widest text-sm">CODENAME (NAMA)</label>
-            <input type="text" value={name} onChange={(e) => handleType(e, setName)} className="w-full bg-black/50 border border-slate-600 text-white p-3 focus:border-yellow-500 focus:outline-none font-mono" placeholder="Enter Name..." />
+            <input type="text" value={name} onChange={(e) => handleType(e, setName)} className="w-full bg-black/50 border border-slate-600 text-white p-3 focus:border-yellow-500 focus:outline-none font-mono uppercase" placeholder="Enter Name..." />
           </div>
           <div>
             <label className="block text-yellow-500 font-bold mb-2 tracking-widest text-sm">RANK (KELAS)</label>
             <input type="text" value={grade} onChange={(e) => handleType(e, setGrade)} className="w-full bg-black/50 border border-slate-600 text-white p-3 focus:border-yellow-500 focus:outline-none font-mono" placeholder="Enter Class..." />
           </div>
-          <button onClick={() => { if(name && grade) onLogin(name, grade); }} disabled={!name || !grade} className="w-full py-4 mt-4 bg-yellow-600 hover:bg-yellow-500 disabled:bg-slate-600 text-black font-ops text-xl clip-diagonal transition-colors">CONFIRM IDENTITY</button>
+          <button onClick={() => { if(name && grade) onLogin(name, grade); }} disabled={!name || !grade} className="w-full py-4 mt-4 bg-yellow-600 hover:bg-yellow-500 disabled:bg-slate-600 text-black font-ops text-xl clip-diagonal transition-colors uppercase">Confirm Identity</button>
         </div>
       </div>
     </div>
@@ -236,28 +234,28 @@ const LoginScreen = ({ onLogin }: { onLogin: (n: string, g: string) => void }) =
 const InstructionsScreen = ({ onNext }: { onNext: () => void }) => (
   <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 p-8">
     <div className="max-w-3xl w-full border border-yellow-500/30 bg-slate-900/90 p-8 relative">
-      <h2 className="font-ops text-3xl text-yellow-500 mb-6 text-center uppercase tracking-tighter">BATTLE MODE: SURVIVAL</h2>
+      <h2 className="font-ops text-3xl text-yellow-500 mb-6 text-center uppercase tracking-tighter">Battle Mode: Live Intel</h2>
       <ul className="space-y-4 text-slate-300 font-mono text-lg list-disc pl-6">
-        <li>Layar terbagi dua untuk kompetisi langsung (Team Blue vs Team Red).</li>
-        <li>Gunakan TACTICAL INTEL (Gambar Soal) untuk membantu menjawab.</li>
-        <li>Setiap jawaban benar memberikan 5 poin dan suara tembakan.</li>
-        <li>Bersihkan semua sektor untuk memenangkan pertandingan.</li>
+        <li>Intel is gathered in real-time using AI satellites.</li>
+        <li>Compete across regions: Blue Team vs Red Team.</li>
+        <li>Correct answers provide 5 XP points and tactical feedback.</li>
+        <li>Mission goal: Clear all sectors for total Booyah! dominance.</li>
       </ul>
-      <button onClick={() => { audioService.playClick(); onNext(); }} className="mt-8 float-right px-8 py-2 bg-yellow-600 text-black font-bold font-ops clip-diagonal hover:bg-white hover:text-black transition-all">CHOOSE AGENT</button>
+      <button onClick={() => { audioService.playClick(); onNext(); }} className="mt-8 float-right px-8 py-2 bg-yellow-600 text-black font-bold font-ops clip-diagonal hover:bg-white hover:text-black transition-all uppercase">Choose Agent</button>
     </div>
   </div>
 );
 
 const CharacterSelectScreen = ({ onSelect }: { onSelect: (id: string) => void }) => (
   <div className="w-full h-full bg-slate-900 flex flex-col p-4 md:p-8">
-    <h2 className="font-ops text-3xl md:text-5xl text-white mb-8 text-center">SELECT YOUR SURVIVOR</h2>
+    <h2 className="font-ops text-3xl md:text-5xl text-white mb-8 text-center uppercase">Select Survivor</h2>
     <div className="flex-1 overflow-x-auto flex items-center gap-8 px-4 pb-4">
       {CHARACTERS.map(char => (
         <div key={char.id} onClick={() => onSelect(char.id)} className="min-w-[280px] h-[450px] bg-slate-800 border-2 border-slate-600 hover:border-yellow-500 relative cursor-none group transition-all transform hover:-translate-y-4">
           <img src={char.image} alt={char.name} className="w-full h-3/5 object-cover grayscale group-hover:grayscale-0 transition-all duration-500" />
           <div className="p-4 bg-gradient-to-t from-black to-slate-800 h-2/5 flex flex-col">
             <h3 className="font-ops text-2xl text-yellow-500">{char.name}</h3>
-            <span className="text-xs bg-yellow-600 text-black px-2 py-1 w-max font-bold mb-2">{char.role}</span>
+            <span className="text-xs bg-yellow-600 text-black px-2 py-1 w-max font-bold mb-2 uppercase">{char.role}</span>
             <p className="text-slate-400 text-sm">{char.description}</p>
           </div>
         </div>
@@ -271,7 +269,6 @@ const MapScreen = ({ user, onSelectCategory, onLogout }: { user: User | null, on
       switch (cat) {
           case Category.MATH: return 'border-cyan-500 from-cyan-900/80 to-slate-900 text-cyan-400';
           case Category.HISTORY_INDO: case Category.PRESIDENTS: case Category.PROPHET: return 'border-red-500 from-red-900/80 to-slate-900 text-red-400';
-          case Category.WAYANG: case Category.HOUSES: case Category.TRIBES: case Category.DANCES: return 'border-amber-500 from-amber-900/80 to-slate-900 text-amber-400';
           default: return 'border-emerald-500 from-emerald-900/80 to-slate-900 text-emerald-400';
       }
   };
@@ -296,7 +293,7 @@ const MapScreen = ({ user, onSelectCategory, onLogout }: { user: User | null, on
           <div>
             <h2 className="font-ops text-2xl text-yellow-500 uppercase">{user?.name || "RECRUIT"}</h2>
             <div className="flex items-center gap-2">
-                <span className="bg-yellow-600/20 text-yellow-500 px-2 py-0.5 text-xs font-mono border border-yellow-600/50 rounded">LEVEL {user?.grade || "0"}</span>
+                <span className="bg-yellow-600/20 text-yellow-500 px-2 py-0.5 text-xs font-mono border border-yellow-600/50 rounded uppercase">Level {user?.grade || "0"}</span>
             </div>
           </div>
         </div>
@@ -316,13 +313,13 @@ const MapScreen = ({ user, onSelectCategory, onLogout }: { user: User | null, on
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity"><Crosshair size={24} className="animate-pulse" /></div>
                     </div>
                     <div>
-                        <span className="text-xs font-mono opacity-70 mb-1">REGION {idx + 1}</span>
-                        <h3 className="font-bold font-mono text-lg leading-tight text-white">{cat.toUpperCase()}</h3>
+                        <span className="text-xs font-mono opacity-70 mb-1 uppercase">Region {idx + 1}</span>
+                        <h3 className="font-bold font-mono text-lg leading-tight text-white uppercase">{cat}</h3>
                     </div>
                     {score > 0 && (
                         <div className="absolute bottom-0 left-0 w-full bg-black/50 py-1 px-4 flex justify-between items-center border-t border-white/10">
-                            <span className="text-xs text-yellow-500 font-bold">SECURED</span>
-                            <span className="text-yellow-400 font-mono font-bold">{score} XP</span>
+                            <span className="text-xs text-yellow-500 font-bold uppercase">Secured</span>
+                            <span className="text-yellow-400 font-mono font-bold uppercase">{score} XP</span>
                         </div>
                     )}
                 </div>
@@ -351,20 +348,20 @@ const PlayerZone = ({ label, colorClass, questions, index, score, finished, onAn
   if (finished) {
     return (
       <div className={`w-1/2 h-full flex flex-col items-center justify-center bg-black/80 border-${isMirrored ? 'l' : 'r'} border-white/10 p-4 text-center`}>
-        <h2 className={`font-ops text-5xl mb-4 ${colorClass}`}>CLEARED</h2>
+        <h2 className={`font-ops text-5xl mb-4 ${colorClass} uppercase`}>CLEARED</h2>
         <div className="text-8xl font-mono text-white mb-2">{score}</div>
-        <div className="text-lg text-slate-500 tracking-widest uppercase">Score</div>
+        <div className="text-lg text-slate-500 tracking-widest uppercase">Score Secured</div>
       </div>
     );
   }
 
-  if (!currentQ) return <div className="w-1/2 h-full bg-black flex items-center justify-center text-yellow-500 font-ops animate-pulse">LOADING INTEL...</div>;
+  if (!currentQ) return <div className="w-1/2 h-full bg-black flex items-center justify-center text-yellow-500 font-ops animate-pulse uppercase">Syncing Intel...</div>;
 
   return (
     <div className={`w-1/2 h-full flex flex-col relative bg-slate-900/50 ${isMirrored ? 'border-l-4' : 'border-r-4'} border-black overflow-hidden`}>
        <div className={`h-16 bg-gradient-to-b from-black/95 to-transparent flex items-center justify-between px-6 border-b z-20 relative ${isMirrored ? 'border-red-600' : 'border-blue-600'}`}>
          <div className="flex items-center gap-4">
-            <div className={`px-3 py-1 text-xs font-bold text-black ${isMirrored ? 'bg-red-500' : 'bg-blue-500'}`}>{label}</div>
+            <div className={`px-3 py-1 text-xs font-bold text-black uppercase ${isMirrored ? 'bg-red-500' : 'bg-blue-500'}`}>{label}</div>
             <span className="font-mono text-white text-lg">{index + 1}/{questions.length}</span>
          </div>
          <div className="font-ops text-3xl text-white">{score}</div>
@@ -401,7 +398,7 @@ const PlayerZone = ({ label, colorClass, questions, index, score, finished, onAn
                return (
                   <button key={`${index}-${i}`} className={`group flex items-center w-full min-h-[56px] border-2 transition-all text-left clip-diagonal overflow-hidden relative ${optionStyle}`} onClick={() => handleOptionClick(opt)}>
                     <div className={`w-12 h-full flex items-center justify-center font-ops text-lg border-r-2 border-inherit flex-none ${prefixStyle}`}>{labels[i]}</div>
-                    <div className="px-4 py-3 flex-1 font-bold text-base md:text-lg leading-tight">{opt}</div>
+                    <div className="px-4 py-3 flex-1 font-bold text-base md:text-lg leading-tight uppercase">{opt}</div>
                   </button>
                )
              })}
@@ -416,24 +413,24 @@ const SplitGameplayScreen = (props: any) => (
      <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-gradient-to-b from-yellow-500 via-transparent to-yellow-500 z-30">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black border-2 border-yellow-500 p-3 rounded-full z-40"><Swords size={28} className="text-yellow-500 animate-pulse" /></div>
      </div>
-     <PlayerZone label="BLUE TEAM" questions={props.questionsP1} index={props.indexP1} score={props.scoreP1} finished={props.finishedP1} onAnswer={props.onAnswerP1} isMirrored={false} colorClass="text-blue-500" />
-     <PlayerZone label="RED TEAM" questions={props.questionsP2} index={props.indexP2} score={props.scoreP2} finished={props.finishedP2} onAnswer={props.onAnswerP2} isMirrored={true} colorClass="text-red-500" />
+     <PlayerZone label="Blue Team" questions={props.questionsP1} index={props.indexP1} score={props.scoreP1} finished={props.finishedP1} onAnswer={props.onAnswerP1} isMirrored={false} colorClass="text-blue-500" />
+     <PlayerZone label="Red Team" questions={props.questionsP2} index={props.indexP2} score={props.scoreP2} finished={props.finishedP2} onAnswer={props.onAnswerP2} isMirrored={true} colorClass="text-red-500" />
   </div>
 );
 
 const ResultScreen = ({ scoreP1, scoreP2, onHome }: any) => {
-    const winner = scoreP1 > scoreP2 ? 'BLUE TEAM' : scoreP1 < scoreP2 ? 'RED TEAM' : 'DRAW';
+    const winner = scoreP1 > scoreP2 ? 'Blue Team' : scoreP1 < scoreP2 ? 'Red Team' : 'Draw';
     const color = scoreP1 > scoreP2 ? 'text-blue-500' : scoreP1 < scoreP2 ? 'text-red-500' : 'text-yellow-500';
     return (
         <div className="w-full h-full bg-slate-950 flex items-center justify-center p-4">
             <div className="w-full max-w-2xl bg-slate-900 border border-slate-700 p-10 flex flex-col items-center relative clip-diagonal shadow-2xl">
-                <h2 className="font-ops text-5xl text-white mb-2 tracking-widest uppercase">BOOYAH!</h2>
+                <h2 className="font-ops text-5xl text-white mb-2 tracking-widest uppercase">Booyah!</h2>
                 <div className="flex w-full justify-between items-center my-10 px-10">
-                   <div className="text-center"><div className="text-blue-500 font-ops text-2xl mb-2">BLUE</div><div className="text-7xl font-mono text-white">{scoreP1}</div></div>
-                   <div className="text-center"><div className={`font-ops text-5xl ${color} animate-pulse`}>{winner}</div></div>
-                   <div className="text-center"><div className="text-red-500 font-ops text-2xl mb-2">RED</div><div className="text-7xl font-mono text-white">{scoreP2}</div></div>
+                   <div className="text-center"><div className="text-blue-500 font-ops text-2xl mb-2 uppercase">Blue</div><div className="text-7xl font-mono text-white">{scoreP1}</div></div>
+                   <div className="text-center"><div className={`font-ops text-5xl uppercase ${color} animate-pulse`}>{winner}</div></div>
+                   <div className="text-center"><div className="text-red-500 font-ops text-2xl mb-2 uppercase">Red</div><div className="text-7xl font-mono text-white">{scoreP2}</div></div>
                 </div>
-                <button onClick={onHome} className="w-full py-5 bg-yellow-600 hover:bg-yellow-500 text-black font-bold font-ops text-2xl clip-diagonal mt-6 transition-all">RETURN TO LOBBY</button>
+                <button onClick={onHome} className="w-full py-5 bg-yellow-600 hover:bg-yellow-500 text-black font-bold font-ops text-2xl clip-diagonal mt-6 transition-all uppercase">Return to Lobby</button>
             </div>
         </div>
     );

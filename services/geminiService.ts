@@ -2,55 +2,32 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Category, Question } from "../types";
 
 /**
- * Mendapatkan instance AI. 
- * Kunci API diambil dari process.env.API_KEY yang sudah di-shim oleh Vite.
+ * Initializes the AI client using the shimmed process.env.API_KEY.
  */
 const getAIClient = () => {
   const apiKey = process.env.API_KEY || "";
+  if (!apiKey) {
+    throw new Error("TACTICAL ALERT: API_KEY is missing. Intel cannot be gathered.");
+  }
   return new GoogleGenAI({ apiKey });
 };
 
 /**
- * Soal cadangan jika API tidak tersedia atau gagal.
- */
-const getOfflineQuestions = (category: string, count: number): Question[] => {
-  const offlineData: Record<string, string[]> = {
-    [Category.MATH]: ["Berapa 15 + 25?", "Berapa 100 - 45?", "Berapa 12 x 5?", "Berapa 81 : 9?"],
-    [Category.HISTORY_INDO]: ["Kapan Indonesia Merdeka?", "Siapa Presiden pertama Indonesia?", "Apa nama kerajaan Hindu tertua?", "Di mana teks Proklamasi dibacakan?"],
-    "default": ["Siapa penemu lampu pijar?", "Apa planet terbesar di tata surya?", "Berapa jumlah provinsi di Indonesia?", "Apa simbol kimia untuk air?"]
-  };
-
-  const pool = offlineData[category] || offlineData["default"];
-
-  return Array.from({ length: count }).map((_, i) => {
-    const qText = pool[i % pool.length];
-    return {
-      id: i,
-      question: `[OFFLINE] ${qText} (#${i + 1})`,
-      options: ["Opsi A", "Opsi B", "Opsi C", "Opsi D"],
-      correctAnswer: "Opsi A",
-      imageUrl: `https://picsum.photos/seed/offline-${category}-${i}/800/450`
-    };
-  });
-};
-
-/**
- * Menghasilkan gambar menggunakan model image.
+ * Generates an AI image for the question context.
  */
 export const generateQuestionImage = async (prompt: string): Promise<string | undefined> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) return undefined;
-
   try {
     const ai = getAIClient();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [{
-          text: `A high-quality 3D cinematic game illustration: ${prompt}. Style: Free Fire tactical art.`,
+          text: `Tactical 3D game illustration for a mobile battle royale. Theme: ${prompt}. Dramatic lighting, vibrant cinematic style.`,
         }],
       },
-      config: { imageConfig: { aspectRatio: "16:9" } }
+      config: { 
+        imageConfig: { aspectRatio: "16:9" } 
+      }
     });
 
     const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
@@ -58,31 +35,28 @@ export const generateQuestionImage = async (prompt: string): Promise<string | un
       return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
     }
   } catch (err) {
-    console.warn("Gagal generate gambar, menggunakan placeholder.");
+    console.warn("Failed to generate AI visual:", err);
   }
   return undefined;
 };
 
 /**
- * Menghasilkan daftar soal.
+ * Generates dynamic questions based on the selected category.
+ * Offline mode has been removed per user request.
  */
 export const generateQuestions = async (category: Category, subTopic: string | null = null, count: number): Promise<Question[]> => {
-  const apiKey = process.env.API_KEY;
-  const topicName = subTopic ? `${category} - ${subTopic}` : category;
-
-  if (!apiKey || apiKey.length < 5) {
-    console.warn("API_KEY tidak valid, menggunakan mode offline.");
-    return getOfflineQuestions(topicName, count);
-  }
+  const topicName = subTopic ? `${category} (${subTopic})` : category;
+  const ai = getAIClient();
 
   try {
-    const ai = getAIClient();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Buatlah ${count} soal pilihan ganda tentang "${topicName}" dalam Bahasa Indonesia.
-      Output HARUS berupa JSON array murni tanpa markdown.
-      Skema objek: { "id": number, "question": string, "options": string[4], "correctAnswer": string, "imagePrompt": string }
-      Pastikan correctAnswer sama persis dengan salah satu elemen di options.`,
+      contents: `Generate exactly ${count} multiple-choice quiz questions about "${topicName}" in Indonesian.
+      Requirements:
+      1. Use high-quality educational content.
+      2. Return a valid JSON array of objects.
+      3. Each object must have: id (number), question (string), options (array of 4 strings), correctAnswer (string), and imagePrompt (detailed visual description).
+      4. correctAnswer must match exactly one of the values in the options array.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -103,25 +77,31 @@ export const generateQuestions = async (category: Category, subTopic: string | n
     });
 
     let text = response.text || "";
-    // Membersihkan blok kode markdown jika model tetap menyertakannya
+    // Clean up any potential markdown formatting
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     
-    if (!text) throw new Error("Respon AI kosong.");
+    if (!text) throw new Error("EMPTY INTEL: No data received from satellites.");
     
-    const questions: any[] = JSON.parse(text);
+    const rawQuestions: any[] = JSON.parse(text);
 
-    // Mempercepat dengan tidak menunggu semua gambar selesai digenerate secara sekuensial
-    const finalQuestions = questions.map((q, idx) => ({
-      ...q,
-      id: idx,
-      // Placeholder awal, nanti bisa diupdate jika perlu atau biarkan asinkron
-      imageUrl: `https://picsum.photos/seed/q-${idx}-${category}/800/450`
+    // Fetch images in parallel for a faster start
+    const finalQuestions = await Promise.all(rawQuestions.map(async (q, idx) => {
+      // For performance, we generate AI images only for the first few questions
+      // and use placeholders for others, or attempt for all if latency isn't an issue.
+      const imageUrl = await generateQuestionImage(q.imagePrompt || q.question);
+      
+      return {
+        ...q,
+        id: idx,
+        imageUrl: imageUrl || `https://picsum.photos/seed/intel-${idx}-${category}/800/450`
+      };
     }));
 
     return finalQuestions;
 
-  } catch (error) {
-    console.error("Kesalahan API Gemini, beralih ke offline:", error);
-    return getOfflineQuestions(topicName, count);
+  } catch (error: any) {
+    console.error("MISSION FAILURE:", error);
+    // Propagate the error to the UI so it doesn't just show empty data
+    throw new Error(error?.message || "SIGNAL LOST: Connection to Battle Intelligence failed.");
   }
 };
