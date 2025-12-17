@@ -4,12 +4,20 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Menyediakan API_KEY ke bundle client-side
-    'process.env.API_KEY': JSON.stringify(process.env.API_KEY)
+    // Memastikan process.env tersedia di browser untuk library yang membutuhkannya
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
   },
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'esbuild'
+    minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'lucide-react', '@google/genai']
+        }
+      }
+    }
   }
 });
